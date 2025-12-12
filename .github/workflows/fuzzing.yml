@@ -67,13 +67,13 @@ jobs:
         echo "1. Используйте параметризованные запросы" >> security-reports/REPORT.md
         echo "2. Валидируйте входные данные" >> security-reports/REPORT.md
         echo "3. Используйте ORM с защитой от SQL инъекций" >> security-reports/REPORT.md
-
-    - name: Upload security report
-      uses: actions/upload-artifact@v3
-      with:
-        name: security-report
-        path: security-reports/
-        retention-days: 7
+     
+     - name: Upload security report
+       uses: actions/upload-artifact@v4
+       with:
+          name: security-reports
+          path: security-reports/
+          retention-days: 7
 
     - name: Cleanup
       run: |
